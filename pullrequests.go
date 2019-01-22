@@ -2,80 +2,163 @@ package bitbucket
 
 import (
 	"encoding/json"
+	"net/url"
 	"os"
 
 	"github.com/k0kubun/pp"
+	"github.com/mitchellh/mapstructure"
 )
+
+type Link struct {
+	Href string
+}
+
+type PullRequestRepository struct {
+	Name     string
+	Uuid     string
+	FullName string
+	Links    map[string]Link
+}
+
+type Commit struct {
+	Links map[string]Link
+	Hash  string
+}
+
+type Person struct {
+	DisplayName string
+	AccountId   string
+	Links       map[string]Link
+	Nickname    string
+	Uuid        string
+	Username    string
+}
+
+type PullRequest struct {
+	Id                int
+	TaskCount         int
+	Author            Person
+	CloseSourceBranch bool
+	Source            struct {
+		Commit     Commit
+		Repository PullRequestRepository
+		Branch     struct {
+			Name string
+		}
+	}
+	Destination struct {
+		Commit     Commit
+		Repository PullRequestRepository
+		Branch     struct {
+			Name string
+		}
+	}
+	CommentCount int
+	State        string
+	Links        map[string]Link
+	Title        string
+	CreatedOn    string
+	//Summary
+	ClosedBy    Person
+	Description string
+	Reason      string
+	MergeCommit Commit
+}
 
 type PullRequests struct {
 	c *Client
 }
 
-func (p *PullRequests) Create(po *PullRequestsOptions) (interface{}, error) {
+func (p *PullRequests) CreateUntyped(po *PullRequestsOptions) (interface{}, error) {
 	data := p.buildPullRequestBody(po)
 	urlStr := p.c.requestUrl("/repositories/%s/%s/pullrequests/", po.Owner, po.RepoSlug)
 	return p.c.execute("POST", urlStr, data)
 }
 
-func (p *PullRequests) Update(po *PullRequestsOptions) (interface{}, error) {
+func (p *PullRequests) Create(po *PullRequestsOptions) (*PullRequest, error) {
+	response, err := p.CreateUntyped(po)
+	if err != nil {
+		return nil, err
+	}
+	return decodePullRequest(response)
+}
+
+func (p *PullRequests) UpdateUntyped(po *PullRequestsOptions) (interface{}, error) {
 	data := p.buildPullRequestBody(po)
 	urlStr := GetApiBaseURL() + "/repositories/" + po.Owner + "/" + po.RepoSlug + "/pullrequests/" + po.ID
 	return p.c.execute("PUT", urlStr, data)
 }
 
-func (p *PullRequests) Gets(po *PullRequestsOptions) (interface{}, error) {
+func (p *PullRequests) GetsUntyped(po *PullRequestsOptions) (interface{}, error) {
 	urlStr := GetApiBaseURL() + "/repositories/" + po.Owner + "/" + po.RepoSlug + "/pullrequests/"
+	response, err := p.c.execute("GET", urlStr, "")
+	if err != nil {
+		return nil, err
+	}
+	return decodePullRequests(response)
+}
+
+func (p *PullRequests) GetWithQueryUntyped(po *PullRequestsOptions, query string) (interface{}, error) {
+	urlStr := GetApiBaseURL() + "/repositories/" + po.Owner + "/" + po.RepoSlug + "/pullrequests/?q=" + url.QueryEscape(query)
 	return p.c.execute("GET", urlStr, "")
 }
 
-func (p *PullRequests) Get(po *PullRequestsOptions) (interface{}, error) {
+func (p *PullRequests) GetWithQuery(po *PullRequestsOptions, query string) (*[]PullRequest, error) {
+	response, err := p.GetWithQueryUntyped(po, query)
+	if err != nil {
+		return nil, err
+	}
+	return decodePullRequests(response)
+}
+
+func (p *PullRequests) GetUntyped(po *PullRequestsOptions) (interface{}, error) {
 	urlStr := GetApiBaseURL() + "/repositories/" + po.Owner + "/" + po.RepoSlug + "/pullrequests/" + po.ID
 	return p.c.execute("GET", urlStr, "")
 }
 
-func (p *PullRequests) Activities(po *PullRequestsOptions) (interface{}, error) {
+func (p *PullRequests) ActivitiesUntyped(po *PullRequestsOptions) (interface{}, error) {
 	urlStr := GetApiBaseURL() + "/repositories/" + po.Owner + "/" + po.RepoSlug + "/pullrequests/activity"
 	return p.c.execute("GET", urlStr, "")
 }
 
-func (p *PullRequests) Activity(po *PullRequestsOptions) (interface{}, error) {
+func (p *PullRequests) ActivityUntyped(po *PullRequestsOptions) (interface{}, error) {
 	urlStr := GetApiBaseURL() + "/repositories/" + po.Owner + "/" + po.RepoSlug + "/pullrequests/" + po.ID + "/activity"
 	return p.c.execute("GET", urlStr, "")
 }
 
-func (p *PullRequests) Commits(po *PullRequestsOptions) (interface{}, error) {
+func (p *PullRequests) CommitsUntyped(po *PullRequestsOptions) (interface{}, error) {
 	urlStr := GetApiBaseURL() + "/repositories/" + po.Owner + "/" + po.RepoSlug + "/pullrequests/" + po.ID + "/commits"
 	return p.c.execute("GET", urlStr, "")
 }
 
-func (p *PullRequests) Patch(po *PullRequestsOptions) (interface{}, error) {
+func (p *PullRequests) PatchUntyped(po *PullRequestsOptions) (interface{}, error) {
 	urlStr := GetApiBaseURL() + "/repositories/" + po.Owner + "/" + po.RepoSlug + "/pullrequests/" + po.ID + "/patch"
 	return p.c.execute("GET", urlStr, "")
 }
 
-func (p *PullRequests) Diff(po *PullRequestsOptions) (interface{}, error) {
+func (p *PullRequests) DiffUntyped(po *PullRequestsOptions) (interface{}, error) {
 	urlStr := GetApiBaseURL() + "/repositories/" + po.Owner + "/" + po.RepoSlug + "/pullrequests/" + po.ID + "/diff"
 	return p.c.execute("GET", urlStr, "")
 }
 
-func (p *PullRequests) Merge(po *PullRequestsOptions) (interface{}, error) {
+func (p *PullRequests) MergeUntyped(po *PullRequestsOptions) (interface{}, error) {
 	data := p.buildPullRequestBody(po)
 	urlStr := GetApiBaseURL() + "/repositories/" + po.Owner + "/" + po.RepoSlug + "/pullrequests/" + po.ID + "/merge"
 	return p.c.execute("POST", urlStr, data)
 }
 
-func (p *PullRequests) Decline(po *PullRequestsOptions) (interface{}, error) {
+func (p *PullRequests) DeclineUntyped(po *PullRequestsOptions) (interface{}, error) {
 	data := p.buildPullRequestBody(po)
 	urlStr := GetApiBaseURL() + "/repositories/" + po.Owner + "/" + po.RepoSlug + "/pullrequests/" + po.ID + "/decline"
 	return p.c.execute("POST", urlStr, data)
 }
 
-func (p *PullRequests) GetComments(po *PullRequestsOptions) (interface{}, error) {
+func (p *PullRequests) GetCommentsUntyped(po *PullRequestsOptions) (interface{}, error) {
 	urlStr := GetApiBaseURL() + "/repositories/" + po.Owner + "/" + po.RepoSlug + "/pullrequests/" + po.ID + "/comments/"
 	return p.c.execute("GET", urlStr, "")
 }
 
-func (p *PullRequests) GetComment(po *PullRequestsOptions) (interface{}, error) {
+func (p *PullRequests) GetCommentUntyped(po *PullRequestsOptions) (interface{}, error) {
 	urlStr := GetApiBaseURL() + "/repositories/" + po.Owner + "/" + po.RepoSlug + "/pullrequests/" + po.ID + "/comments/" + po.CommentID
 	return p.c.execute("GET", urlStr, "")
 }
@@ -138,3 +221,58 @@ func (p *PullRequests) buildPullRequestBody(po *PullRequestsOptions) string {
 
 	return string(data)
 }
+
+func decodePullRequests(response interface{}) (*[]PullRequest, error) {
+	responseMap := response.(map[string]interface{})
+
+	if responseMap["type"] == "error" {
+		return nil, DecodeError(responseMap)
+	}
+
+	var pullRequests []PullRequest
+	values := responseMap["values"].([]interface{})
+
+	for _, value := range values {
+		pullRequest := &PullRequest{}
+		err := mapstructure.Decode(value, pullRequest)
+		if err != nil {
+			return nil, err
+		}
+		pullRequests = append(pullRequests, *pullRequest)
+	}
+
+	return &pullRequests, nil
+}
+
+func decodePullRequest(response interface{}) (*PullRequest, error) {
+	responseMap := response.(map[string]interface{})
+
+	if responseMap["type"] == "error" {
+		return nil, DecodeError(responseMap)
+	}
+
+
+	pullRequest := &PullRequest{}
+	err := mapstructure.Decode(response, pullRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	return pullRequest, nil
+}
+
+//func decodePullRequest(response interface{}) (*PullRequest, error) {
+//	repoMap := response.(map[string]interface{})
+//
+//	if repoMap["type"] == "error" {
+//		return nil, DecodeError(repoMap)
+//	}
+//
+//	pullRequest := PullRequest{}
+//	err := mapstructure.Decode(repoMap, repository)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	return &pullRequest, nil
+//}

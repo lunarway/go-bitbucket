@@ -120,6 +120,10 @@ func injectClient(a *auth) *Client {
 	return c
 }
 
+func (c *Client) Execute(method string, urlStr string, text string) (interface{}, error) {
+	return c.execute(method, urlStr, text)
+}
+
 func (c *Client) execute(method string, urlStr string, text string) (interface{}, error) {
 	// Use pagination if changed from default value
 	const DEC_RADIX = 10
